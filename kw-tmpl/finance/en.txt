@@ -1,0 +1,7 @@
+ecb
+bailout
+crash
+economic
+unemployed
+unemployment
+work
