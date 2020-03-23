@@ -41,3 +41,5 @@ def create_topics():
         except FileExistsError:
             pass
    
+def top_searches_no_outlier():
+    raise NotImplementedError
