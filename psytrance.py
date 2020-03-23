@@ -2,6 +2,7 @@ from pytrends.request import TrendReq
 from trendsdata import load_kws, langs, topics, kw_tmpl, ext, read_proxies
 import os
 from typing import List, Optional
+import numpy as np
 
 
 # mock data
@@ -31,10 +32,6 @@ def update_trends(proxies:List[str]=["http://179.108.169.71:8080"]) -> None:
 
             pytrends.build_payload(kw_list, cat=0, timeframe='today 1-w', geo='', gprop='')
 
-
-
-
-
 def create_topics():
     with_keywords = os.listdir(kw_tmpl)
     for topic in with_keywords:
@@ -43,9 +40,4 @@ def create_topics():
             os.mkdir(new)
         except FileExistsError:
             pass
-    
-def renormalize(old_data:List[float]=[], new_point:float=0.):
-
-
-    raise NotImplementedError
-
+   
