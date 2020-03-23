@@ -8,7 +8,7 @@ import glob
 import numpy as np
 import pandas as pd
 
-
+import random
 from typing import List, Optional
 #brainy juicy
 import torch
@@ -103,12 +103,80 @@ class Model(nn.Module):
         self.gru = nn.GRUCell(self.input_size, self.hidden_size)
         self.linear = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward(self,input, future=0, y=None) -> Lis[nn.module]:
+    def forward(self,input, future=0, y=None) -> List[nn.module]:
+        """
+        future is somewhere between 1 and half seq len
+        and determines from whereon we teacher force
+        why is this random and only done on somewhere after the
+        second half? 
+        maybe to allow creative starts and not overfit 
+        but doesnt this mean the model is trained on    
+        self gen self gen self gen self gen JUMP TO GOLD gold gold gold 
+        ??? i trust this implementation for now
+        """
         outputs = []
 
-        #reset the state of GRU
+        #reset the state of GRU 
+        #state is kept until the end of the sequence
         h_t = torch.zeros(input.size(0), self.hidden_size, dtye=torch.float32)
         c_t = torch.zeros(input.size(0), self.hidden_size, dtye=torch.float32)
-        # Latest TODO: implement
-        raise NotImplementedError
+
+        # chunk time series data (what size does chunk chunk to??)
+        for i, input_t in enumerate(input.chunk(input.size(1),dim=1)):
+            #unroll one step
+
+            h_t, c_t = self.gru(input_t, (h_t,c_t))
+            output = self.linear(h_t)
+            outputs.append(output)
+        
+        for i in range(future):
+            if y is not None and random.random() > .5:
+                output = y[:, [i]]
+
+            h_t, c_t = self.gru(output, (h_t, c_t))
+            output = self.linear(h_t)
+            outputs.append(output)
+
+        #concatenate time interval batched data back again
+        outputs = torch.stack(outputs, 1).squeeze(2)
+        return outputs
+
+class Optimization:
+    """ Helper class to train, test, diagnose the LSTM"""
+
+    def __init__(self, model, loss_fn, optimizer, scheduler):
+        self.model = model
+        self.loss_fn = loss_fn
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.train_losses = []
+        self.val_losses = []
+        self.futures = []
+
+    @staticmethod
+    def generate_batch_data(x,y,batch_size):
+        for batch, i in enumerate(range(0,len(x) -bach_size, batch_size)):
+            x_batch = x[i : i + batch_size]
+            y_batch = y[i : i + batch_size]
+            yield x_batch, y_batch, batch
+    
+    def train(
+        self,
+        x_train,
+        y_train,
+        x_val=None,
+        y_val=None,
+        batch_size=100,
+        n_epochs=15,
+        teacher_forcing=None,
+    ):
+        seq_len = x_train.shape[1]
+        for epoch in range(n_epochs):
+            start_time = time.time()
+            self.futures = []
+
+            pass
+            
+
+            
     
