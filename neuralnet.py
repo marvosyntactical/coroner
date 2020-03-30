@@ -4,6 +4,7 @@
 # https://romanorac.github.io/machine/learning/2019/09/27/time-series-prediction-with-lstm.html
 
 #preproc
+import pickle as pkl
 import glob
 import numpy as np
 import pandas as pd
@@ -12,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 
 import random
 from typing import List, Optional, Tuple
+import time
 #brainy juicy
 import torch
 import torch.nn as nn
@@ -23,7 +25,7 @@ global kw_trends
 kw_trends = "kw-trends/"
 
 
-def load_data(topic:str=category) -> None:
+def load_data(topic:str="corona") -> None:
     files = sorted(glob.glob(kw_trends+category+"/*"))
     df = pd.concat(map(pd.read_pickle, files))
 
@@ -33,10 +35,15 @@ def load_data(topic:str=category) -> None:
 
 
 def preproc(df:pd.DataFrame, splits: Tuple = (0.8,0.1,0.1)) -> Tuple[pd.DataFrame]:
+
     if df is None:
         df = load_data() #use defaults
 
-    raise NotImplementedError 
+    # TODO implement 
+
+    df_train, df_val, df_test = None, None, None
+
+    return df_train, df_val, df_test 
 
  
 def renormalize_and_integrate(old_data:np.ndarray=np.array([]), new_points:np.ndarray=np.array([])) ->np.ndarray:
@@ -125,7 +132,12 @@ def scale(scaler: StandardScaler,trdf: pd.Dataframe,
     
 
 def inverse_transform(scaler, df, columns):
-    # what does this mean
+    # postprocessing
+
+    # recover true feature scales that is saved
+    # somewhere in the same scaler object used to fit and transform
+    # during preproc
+
     for col in columns:
         df[col] = scaler.inverse_transform(df[col])
     return df
@@ -133,9 +145,12 @@ def inverse_transform(scaler, df, columns):
 
 def transform_data(arr, seq_len):
     x,y = [], []
+
     for i in range(len(arr)-seq_len):
         x_i = arr[i:i+seq_len]
         y_i = arr[i+1 : i+ seq_len+1] #TODO is the shift we want to predict actually value at the next time interval?
+        x.append(x_i); y.append(y_i)
+
     x_arr = np.array(x).reshape(-1, seq_len)
     y_arr = np.array(y).reshape(-1, seq_len)
     x_arr = Variable(torch.from_numpy(x_arr).float())
@@ -221,6 +236,9 @@ class TrainManager:
         n_epochs=15,
         teacher_forcing=None,
     ):
+        print(f"Initiating training for {n_epochs} with batch_size={batch_size},\
+        teacher_forcing={teacher_forcing}")
+
         seq_len = x_train.shape[1]
         for epoch in range(n_epochs):
             start_time = time.time()
@@ -289,14 +307,14 @@ class TrainManager:
         plt.title("Losses")
 
 
-
-def run_1():
+def run(from_checkpoint=False):
+    #future ist anzahl der timesteps die predicted werden, zB mit
 
     category = "social"
 
     data = load_data(category)
     
-    train_df, val_df, test_df = preproc(data)
+    df_train, df_val, df_test = preproc(data)
 
     scaler = StandardScaler()
 
@@ -309,15 +327,62 @@ def run_1():
     x_test, y_test = transform_data(test_arr, seq_len)
 
 
-    model_1 = Model(input_size=1, hidden_size=21, output_size=1)
-    loss_fn_1 = nn.MSELoss()
-    optimizer_1 = optim.Adam(model_1.parameters(), lr=1e-3)
-    scheduler_1 = optim.lr_scheduler.StepLR(optimizer_1, step_size=5, gamma=.1)
+    if not from_checkpoint:
+        model = Model(input_size=1, hidden_size=21, output_size=1)
+    else:
+        model = load_checkpoint()
+    loss_fn = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=.1)
 
-    optimization_1 = TrainManager(model_1, loss_fn_1, optimizer_1, scheduler_1)
+    optimization = TrainManager(model, loss_fn, optimizer, scheduler)
 
-    teacher_forcing = True
+    teacher_forcing = True 
+    epochs = 20
 
-    # train the model
-    optimization_1.train(x_train, y_train, x_val, y_val, teacher_forcing)
+    # TRAINING 
+    optimization.train(x_train, y_train, x_val, y_val, n_epochs=epochs,teacher_forcing=teacher_forcing)
+
+    # TODO: serialize model here!!
+
+    # PLOTTING NOTE the training performance
+    # we want to compare different runs
+    # and how fast train and val losses converge
+    # and ofc when training loss is minimal
+    optimization.plot_losses()
+    
+    # TESTING
+
+    #set a future value for testing:
+    future = 7 # see how well we learnt to look 1 week ahead
+
+    actual, predicted, test_loss = optimization.evaluate(x_test, y_test, future=future, bach_size=100)
+
+    # PLOTTING NOTE the test results:
+
+    figsize=(14,7)
+    figure, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
+
+    df_result = to_dataframe(actual, predicted)
+    df_result = inverse_transform(scaler, df_result, ["actual", "predicted"])
+    df_result.plot(figsize=figsize)
+
+    # how to look at certain time window:
+    df_result.iloc[200:300].plot(ax=axes[0], figsize=figsize)
+
+    print(f"Test loss: {test_loss}") 
+
+    # use generate seq to play around with model predictions 
+    # x_sample = x_test[0].reshape(1,-1)
+    # y_pred = generate_sequence(scaler, optimization.model, x_sample)
+    # plt.plot(range(100), y_pred[0][:100],color="blue",lw=2, label="Predicted Outbreaks")
+    # plt.plot(range(100,1100),y_pred[0][100:], "--", color="blue", lw=2, label="Generated Outbreaks")
+    # plt.plot(range(0,1100), y_sample, color="red", label="Actual Outbreaks")
+    # plt.legend()
+    plt.figure(figsize=figsize)
+    plt.show()
+
     return 0
+
+def plot_sequence(axes, i, x_train, y_train):
+    pass

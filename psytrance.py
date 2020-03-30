@@ -40,6 +40,15 @@ def create_topics():
             os.mkdir(new)
         except FileExistsError:
             pass
-   
+
 def top_searches_no_outlier():
     raise NotImplementedError
+
+
+def main():
+
+
+    raise NotImplementedError
+
+if __name__ == "__main__":
+    main()
