@@ -4,7 +4,7 @@ import glob
 from typing import List, Optional
 from googletrans import Translator
 
-global langs, topics, proxies, kw_tmpl, ext
+global langs, topics, kw_tmpl, ext
 
 #templates
 langs = ["en", "de", "fr", "es", "hu", "ru", "da"]

@@ -12,9 +12,8 @@ from copy import deepcopy
 
 class ProxyListServer(object):
     # uses unix time
-
   
-    def __init__(self,name:str="MyProxyListServer",interv_minutes:int=60):
+    def __init__(self,name:str="MyProxyListServer",interv_minutes:int=5):
 
         self._update = int(interv_minutes)
         self.name = name
@@ -109,18 +108,25 @@ class ProxyListServer(object):
         if file is None:
             file = self.proxies_file
 
-        filepath = self.proxies_path+file+self.json_ext
+        filepath = self.jsnfy(self.proxies_pathify(file))
 
         with open(filepath, "w") as out:
             json.dump(proxy_dict,out)
         
         return filepath
+    
+    def jsnfy(self,s):
+        return s if s.endswith(self.json_ext) else s+self.json_ext
+
+    def proxies_pathify(self, s):
+        return s if s.startswith(self.proxies_path) else self.proxies_path+s
+
 
     def read_proxies(self,file:str=None) -> dict:
         if file is None:
-            file = self.proxies_file
+            file = self.jsnfy(self.proxies_file)
 
-        filepath = self.proxies_path+file+self.json_ext
+        filepath = self.jsnfy(self.proxies_pathify(file))
         with open(filepath, "r") as proxy_file:
             proxydict = json.load(proxy_file)
 
@@ -128,7 +134,7 @@ class ProxyListServer(object):
 
     def update_proxy_dict(self,proxy_dict:dict=dict(), file:str=None,copy:str="") -> str:
         if file is None:
-            file = self.proxies_file
+            file = self.jsnfy(self.proxies_file)
 
         """
         update json by new proxy list dict
@@ -140,11 +146,14 @@ class ProxyListServer(object):
 
         returns output filepath
         """
-        old_path = self.proxies_path+file
+        old_path = self.jsnfy(self.proxies_pathify(file))
+
         if not os.path.isfile(old_path):
-            print(f"Creating json file {old_path+self.json_ext} !")
+            assert False, old_path+" doesnt seemt to exist...but really does??!?!"
+            print(f"Creating json file {old_path} !")
             self.serialize_proxy_dict(proxy_dict,file)
             return old_path
+
         #TODO at some point below here this function rewrites the old dictionary withe new one...
 
         proxies_so_far = self.read_proxies(file)
@@ -159,7 +168,8 @@ class ProxyListServer(object):
             incr_ID = int(ID)+increment
             new[incr_ID] = cols
 
-        write_to = self.proxies_path+copy if copy else old_path
+        write_to = self.jsnfy(self.proxies_pathify(copy)) if copy else old_path
+        print(f"writing all proxies gathered so far to {write_to} !")
         self.serialize_proxy_dict(new,write_to)
 
         return write_to
@@ -197,13 +207,16 @@ class ProxyListServer(object):
         
 
     def update(self, copy=""):
+
         borschtsch = self.collect_contents()
         muesli = self.proxynova_soup_to_proxy_dict(borschtsch)
         better_muesli = self.filter_proxies(muesli)
         shelf = self.update_proxy_dict(better_muesli,copy=copy)
+
         print(f"\nGot some juicy fresh IPs off {self.site}")
  
-    def run(self,until_minutes:int=24*60):
+    def run(self, until_minutes:int=24*60):
+
         #run for 1 day per default
         self.until_minutes = until_minutes
 
@@ -237,7 +250,7 @@ class ProxyListServer(object):
                 except KeyboardInterrupt:
                     break
         print(f"\nStopping self.run().")
-        print(f"Remember ips are available at {self.proxies_path+self.proxies_file+self.json_ext} ;)")
+        print(f"Remember ips are available at {self.jsnfy(self.proxies_pathify(self.proxies_file))} ;)")
 
          
         
