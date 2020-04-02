@@ -36,31 +36,35 @@ def country_lang(country: str="", geo_lkp_file: str=countriesINFO, proximity=5) 
     #preproc
     country = country.lower()
 
-    df = pd.read_pickle(lkp_file) 
+    df = pd.read_pickle(geo_lkp_file) 
 
     index = df.index[df["Country"]==country]
     country_row = df.iloc[index]
     languages = country_row["Languages"]
+
     try:
         lang_codes = languages.item() #if succeeds, found exactly one matching country
     except ValueError:
+        # failed to match str, recurse to closest MED neighbor
+        edit_distance = MEDfrom(country)
         countries = df["Country"].to_list()
+        close = sorted(countries, key=edit_distance)
 
-        
-        lang_codes = None #failed, string didnt match any country
         warnings.warn(f"Couldnt find country={country} in country info file={geo_lkp_file};\n\
-            here 5 closest matches: {close[:proximity-1]}")
-        
+            here 5 closest matches: {close[:proximity-1]};\n\
+                choosing first best match: {close[0]}")
+        lang_codes = country_lang(close[0], geo_lkp_file)
 
     return lang_codes
 
-def distanceFrom(s1, *args):
-    #how to return copy of levenshteindist func wherein
-    #s1 is specified???
-        
-    def levenshteinDistance(s1, s2):
-        if len(s1) > len(s2):
-            s1, s2 = s2, s1
+class MEDfrom:
+    def __init__(self, s1):
+        self.s1 = s1
+    def __call__(self,s2):
+        if len(self.s1) > len(s2):
+            s1, s2 = s2, self.s1
+        else:
+            s1 = self.s1
 
         distances = range(len(s1) + 1)
         for i2, c2 in enumerate(s2):
@@ -72,11 +76,9 @@ def distanceFrom(s1, *args):
                     distances_.append(1 + min((distances[i1], distances[i1 + 1], distances_[-1])))
             distances = distances_
         return distances[-1]
-    return levenshteinDistance(s1,*args)
 
 def country_iso(country: str="", geo_lkp_file: str=countriesINFO) -> str:
     """
-
     converts country str (MUST be in geo_lkp_file["Country"] to language) 
      to iso string
 
@@ -87,7 +89,7 @@ def country_iso(country: str="", geo_lkp_file: str=countriesINFO) -> str:
     #preproc
     country = country.lower()
 
-    df = pd.read_pickle(lkp_file) 
+    df = pd.read_pickle(geo_lkp_file) 
 
     index = df.index[df["Country"]==country]
     country_row = df.iloc[index]
